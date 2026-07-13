@@ -1,13 +1,18 @@
 mod commands;
 mod resp;
+mod store;
 
 use crate::commands::types::ResponseError;
-use crate::commands::{echo, ping};
+use crate::commands::{echo, get, ping, set};
 use crate::resp::types::{ParseError, RESPValue};
+use crate::store::store::Store;
+use std::cell::RefCell;
+use std::rc::Rc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 async fn handle_connection(
     mut stream: tokio::net::TcpStream,
+    store: Rc<RefCell<Store>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // read request
     let mut buf = Vec::new();
@@ -47,12 +52,24 @@ async fn handle_connection(
 
                 match &a[0] {
                     RESPValue::BulkString(cmd) => {
-                        if cmd.eq_ignore_ascii_case("echo") {
-                            raw_resp = echo::echo(a)?;
-                        } else if cmd.eq_ignore_ascii_case("ping") {
-                            raw_resp = ping::ping()?;
-                        } else {
-                            return Err(Box::new(ResponseError::UnsupportedCommandError));
+                        // todo: clean up, would use a map, but need case insensitive; maybe a custom hasher?
+                        let cmd_lower = cmd.to_lowercase();
+                        match cmd_lower.as_str() {
+                            "echo" => {
+                                raw_resp = echo::echo(a)?;
+                            }
+                            "ping" => {
+                                raw_resp = ping::ping()?;
+                            }
+                            "set" => {
+                                raw_resp = set::set(a, &store)?;
+                            }
+                            "get" => {
+                                raw_resp = get::get(a, &store)?;
+                            }
+                            _ => {
+                                return Err(Box::new(ResponseError::UnsupportedCommandError));
+                            }
                         }
                     }
                     _ => {
@@ -88,32 +105,40 @@ async fn read_config() -> Result<Config, ReadConfigError> {
     })
 }
 
-#[tokio::main]
+// single-threaded runtime, like Redis (afaik). also don't have to wory about mutexes, so that's gucci.
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
-    // join! may be premature optimization, but i plan on file-read in the future and don't want to forget this is a thing...
-    let (config_res, listener_res) = tokio::join!(
-        read_config(),
-        tokio::net::TcpListener::bind("127.0.0.1:6379")
-    );
-    let config = config_res.unwrap();
-    let listener = listener_res.unwrap();
+    let local = tokio::task::LocalSet::new();
+    local
+        .run_until(async {
+            let rc_store = Rc::new(RefCell::new(Store::new()));
+            // join! may be premature optimization, but i plan on file-read in the future and don't want to forget this is a thing...
+            let (config_res, listener_res) = tokio::join!(
+                read_config(),
+                tokio::net::TcpListener::bind("127.0.0.1:6379")
+            );
+            let config = config_res.unwrap();
+            let listener = listener_res.unwrap();
 
-    loop {
-        let (stream, _) = listener.accept().await.unwrap();
-        tokio::spawn(async move {
-            if config.timeout.is_zero() {
-                let err = handle_connection(stream).await.err();
-                if !err.is_none() {
-                    // todo handle error? log?
-                }
-            } else {
-                tokio::select! {
-                    _ = handle_connection(stream) => {}
-                    _ = tokio::time::sleep(config.timeout) => {
-                        // stream.shutdown().await; how to safely handle a shutdown?
+            loop {
+                let (stream, _) = listener.accept().await.unwrap();
+                let s = rc_store.clone();
+                tokio::task::spawn_local(async move {
+                    if config.timeout.is_zero() {
+                        let err = handle_connection(stream, s).await.err();
+                        if !err.is_none() {
+                            // todo handle error? log?
+                        }
+                    } else {
+                        tokio::select! {
+                            _ = handle_connection(stream, s) => {}
+                            _ = tokio::time::sleep(config.timeout) => {
+                                // stream.shutdown().await; how to safely handle a shutdown?
+                            }
+                        }
                     }
-                }
+                });
             }
-        });
-    }
+        })
+        .await;
 }
