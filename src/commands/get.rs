@@ -14,7 +14,11 @@ pub fn get(input: &MultiBulk, store: &Rc<RefCell<Store>>) -> Result<RESPValue, R
         _ => return Err(ResponseError::MalformedRequestError),
     };
 
-    match store.borrow().get(&key) {
+    match store
+        .borrow_mut()
+        .get(&key)
+        .map_err(|_| ResponseError::InternalError)?
+    {
         Some(entry) => Ok(RESPValue::BulkString(entry.value.clone())),
         None => Ok(RESPValue::NullBulkString),
     }
