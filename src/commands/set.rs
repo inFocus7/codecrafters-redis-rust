@@ -1,6 +1,7 @@
 use super::types::ResponseError;
 use crate::resp::types::{MultiBulk, RESPValue};
 use crate::store::store::Store;
+use crate::store::types::Value;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::u64;
@@ -109,7 +110,10 @@ pub fn set(input: &MultiBulk, store: &Rc<RefCell<Store>>) -> Result<RESPValue, R
                 .borrow_mut()
                 .get(&key)
                 .map_err(|_| ResponseError::InternalError)?
-                .map(|v| v.value == s) // if Some && equal
+                .map(|v| match &v.value {
+                    Value::String(vs) => vs == &s,
+                    _ => false, // if a non-string it can't be eq
+                }) // if Some is a String && equal
                 .unwrap_or(false); // if None
             if should_set {
                 store.borrow_mut().set(key, value, expiry_ms);
@@ -120,7 +124,10 @@ pub fn set(input: &MultiBulk, store: &Rc<RefCell<Store>>) -> Result<RESPValue, R
                 .borrow_mut()
                 .get(&key)
                 .map_err(|_| ResponseError::InternalError)?
-                .map(|v| v.value != s) // if Some && not equal
+                .map(|v| match &v.value {
+                    Value::String(vs) => vs != &s,
+                    _ => true, // if a non-string it can't be equal
+                }) // if Some && not equal
                 .unwrap_or(true); // if None
             if should_set {
                 store.borrow_mut().set(key, value, expiry_ms);
@@ -133,7 +140,10 @@ pub fn set(input: &MultiBulk, store: &Rc<RefCell<Store>>) -> Result<RESPValue, R
                 .borrow_mut()
                 .get(&key)
                 .map_err(|_| ResponseError::InternalError)?
-                .map(|v| xxhash3_64::Hasher::oneshot(v.value.as_bytes()) == s_int) // if the hashes match
+                .map(|v| match &v.value {
+                    Value::String(vs) => xxhash3_64::Hasher::oneshot(vs.as_bytes()) == s_int,
+                    _ => false, // if not a string - it never equals
+                }) // if the hashes match
                 .unwrap_or(false); // if None, don't create
             if should_set {
                 store.borrow_mut().set(key, value, expiry_ms);
@@ -146,7 +156,10 @@ pub fn set(input: &MultiBulk, store: &Rc<RefCell<Store>>) -> Result<RESPValue, R
                 .borrow_mut()
                 .get(&key)
                 .map_err(|_| ResponseError::InternalError)?
-                .map(|v| xxhash3_64::Hasher::oneshot(v.value.as_bytes()) == s_int) // if the hashes match
+                .map(|v| match &v.value {
+                    Value::String(vs) => xxhash3_64::Hasher::oneshot(vs.as_bytes()) != s_int,
+                    _ => true, // if not a string - it never equals
+                }) // if the hashes do not match
                 .unwrap_or(true); // if None, create
             if should_set {
                 store.borrow_mut().set(key, value, expiry_ms);

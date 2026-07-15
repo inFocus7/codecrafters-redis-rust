@@ -3,7 +3,7 @@ mod resp;
 mod store;
 
 use crate::commands::types::ResponseError;
-use crate::commands::{echo, get, ping, set};
+use crate::commands::{echo, get, ping, rpush, set};
 use crate::resp::types::{ParseError, RESPValue};
 use crate::store::store::Store;
 use std::cell::RefCell;
@@ -55,18 +55,11 @@ async fn handle_connection(
                         // todo: clean up, would use a map, but need case insensitive; maybe a custom hasher?
                         let cmd_lower = cmd.to_lowercase();
                         match cmd_lower.as_str() {
-                            "echo" => {
-                                raw_resp = echo::echo(a)?;
-                            }
-                            "ping" => {
-                                raw_resp = ping::ping()?;
-                            }
-                            "set" => {
-                                raw_resp = set::set(a, &store)?;
-                            }
-                            "get" => {
-                                raw_resp = get::get(a, &store)?;
-                            }
+                            "echo" => raw_resp = echo::echo(a)?,
+                            "ping" => raw_resp = ping::ping()?,
+                            "set" => raw_resp = set::set(a, &store)?,
+                            "get" => raw_resp = get::get(a, &store)?,
+                            "rpush" => raw_resp = rpush::rpush(a, &store)?,
                             _ => {
                                 return Err(Box::new(ResponseError::UnsupportedCommandError));
                             }

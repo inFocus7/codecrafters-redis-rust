@@ -1,6 +1,7 @@
 use super::types::ResponseError;
 use crate::resp::types::{MultiBulk, RESPValue};
 use crate::store::store::Store;
+use crate::store::types::Value;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -19,7 +20,10 @@ pub fn get(input: &MultiBulk, store: &Rc<RefCell<Store>>) -> Result<RESPValue, R
         .get(&key)
         .map_err(|_| ResponseError::InternalError)?
     {
-        Some(entry) => Ok(RESPValue::BulkString(entry.value.clone())),
+        Some(entry) => match &entry.value {
+            Value::String(vs) => Ok(RESPValue::BulkString(vs.clone())),
+            _ => return Err(ResponseError::MalformedRequestError),
+        },
         None => Ok(RESPValue::NullBulkString),
     }
 }
