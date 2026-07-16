@@ -2,7 +2,9 @@ use crate::store::types::StoreError;
 
 use super::types::{Entry, Value};
 use ahash::RandomState;
+use std::cmp::min;
 use std::collections::HashMap;
+use std::ops::Index;
 
 // TODO: active (configurable) expiration
 
@@ -28,24 +30,17 @@ impl Store {
     // TODO: Right now we require mutable store, meaning borrow_mut(), but i can instead delete-if-expired after the get() to keep this immutable.
     // Something like: Ok(val) => exists, ok; Ok(None) => exists, expired {then caller does a .delete() on their end}; None | Err(NotExists) => DNE; Err(val) => error
     pub fn get(&mut self, key: &str) -> Result<Option<&Entry>, StoreError> {
-        let expired = if let Some(entry) = self.data.get(key) {
-            if let Some(exp) = entry.expiry {
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_err(|_| StoreError::InternalError)?;
-                now.as_millis() as u64 > exp
-            } else {
-                false
-            }
-        } else {
-            false
-        };
-
-        if expired {
+        if let Some(entry) = self.data.get(key)
+            && entry.is_expired()?
+        {
             self.delete(key);
             return Ok(None);
         }
-        return Ok(self.data.get(key));
+        Ok(self.data.get(key))
+    }
+
+    fn has(&mut self, key: &str) -> bool {
+        self.data.contains_key(key)
     }
 
     pub fn delete(&mut self, key: &str) -> Option<Entry> {
@@ -66,6 +61,48 @@ impl Store {
                 self.data.insert(key, Entry::new(Value::List(elements)));
                 Ok(len)
             }
+        }
+    }
+
+    pub fn lrange(
+        &mut self,
+        key: &str,
+        start: isize,
+        stop: isize,
+    ) -> Result<Vec<String>, StoreError> {
+        if let Some(entry) = self.data.get(key)
+            && entry.is_expired()?
+        {
+            self.delete(key);
+            return Ok(vec![]);
+        }
+
+        if let Some(entry) = self.data.get(key) {
+            match &entry.value {
+                Value::List(l) => {
+                    let stop_c = min(stop, l.len() as isize - 1);
+
+                    // normalize negatives from end of list
+                    let norm_start = start.rem_euclid(l.len() as isize) as usize;
+                    let norm_stop = stop_c.rem_euclid(l.len() as isize) as usize;
+
+                    if norm_start > l.len() || norm_start > norm_stop {
+                        return Ok(vec![]);
+                    }
+
+                    let mut res =
+                        Vec::<String>::with_capacity((norm_stop - norm_start) as usize + 1);
+
+                    for i in 0..(norm_stop - norm_start + 1) {
+                        res.push(l[norm_start + i].to_string());
+                    }
+
+                    return Ok(res);
+                }
+                Value::String(_) => return Err(StoreError::WrongType),
+            }
+        } else {
+            Ok(vec![])
         }
     }
 }
