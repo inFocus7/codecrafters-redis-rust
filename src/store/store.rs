@@ -4,7 +4,6 @@ use super::types::{Entry, Value};
 use ahash::RandomState;
 use std::cmp::min;
 use std::collections::HashMap;
-use std::ops::Index;
 
 // TODO: active (configurable) expiration
 
@@ -80,13 +79,13 @@ impl Store {
         if let Some(entry) = self.data.get(key) {
             match &entry.value {
                 Value::List(l) => {
-                    let stop_c = min(stop, l.len() as isize - 1);
+                    if start > 0 && start as usize > l.len() {
+                        return Ok(vec![]);
+                    }
+                    let norm_stop = normalize_idx(stop, l.len());
+                    let norm_start = normalize_idx(start, l.len());
 
-                    // normalize negatives from end of list
-                    let norm_start = start.rem_euclid(l.len() as isize) as usize;
-                    let norm_stop = stop_c.rem_euclid(l.len() as isize) as usize;
-
-                    if norm_start > l.len() || norm_start > norm_stop {
+                    if norm_start > norm_stop {
                         return Ok(vec![]);
                     }
 
@@ -104,5 +103,19 @@ impl Store {
         } else {
             Ok(vec![])
         }
+    }
+}
+
+fn normalize_idx(idx: isize, len: usize) -> usize {
+    if idx < 0 {
+        let abs = idx.unsigned_abs();
+        // not using euclidian remainder since we need to clamp if negative is too negative
+        if abs > len {
+            0 // clamp
+        } else {
+            len - abs
+        }
+    } else {
+        min(idx as usize, len - 1) // clamp to last
     }
 }
