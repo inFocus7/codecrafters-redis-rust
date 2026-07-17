@@ -63,6 +63,27 @@ impl Store {
         }
     }
 
+    pub fn lpush(&mut self, key: String, mut elements: Vec<String>) -> Result<usize, StoreError> {
+        match self.data.get_mut(&key) {
+            Some(v) => match &mut v.value {
+                Value::String(_) => return Err(StoreError::KeyTaken),
+                Value::List(l) => {
+                    let original_len = l.len();
+                    elements.reverse();
+                    l.extend(elements);
+                    l.rotate_left(original_len); // should move new elements (after original len) to front
+                    Ok(l.len())
+                }
+            },
+            None => {
+                elements.reverse();
+                let len = elements.len();
+                self.data.insert(key, Entry::new(Value::List(elements)));
+                Ok(len)
+            }
+        }
+    }
+
     pub fn lrange(
         &mut self,
         key: &str,

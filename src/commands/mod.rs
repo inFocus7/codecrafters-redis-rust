@@ -1,5 +1,6 @@
 pub mod echo;
 pub mod get;
+pub mod lpush;
 pub mod lrange;
 pub mod ping;
 pub mod rpush;
