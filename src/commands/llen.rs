@@ -10,7 +10,7 @@ pub fn llen(input: &MultiBulk, store: &Rc<RefCell<Store>>) -> Result<RESPValue, 
     }
     let raw_key = &input[1];
     let key = match raw_key {
-        RESPValue::BulkString(s) => s.to_string(),
+        RESPValue::BulkString(s) => s.clone(),
         _ => return Err(ResponseError::MalformedRequestError),
     };
 

@@ -35,8 +35,5 @@ pub fn lrange(input: &MultiBulk, store: &Rc<RefCell<Store>>) -> Result<RESPValue
         .lrange(key, start, stop)
         .map_err(|_| ResponseError::InternalError)?;
 
-    // convert raw String vector into array of BulkStrings
-    Ok(RESPValue::Array(MultiBulk::from_iter(
-        res_raw.into_iter().map(|s| RESPValue::BulkString(s)),
-    )))
+    Ok(RESPValue::Array(MultiBulk::from(res_raw)))
 }

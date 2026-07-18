@@ -1,4 +1,4 @@
-use super::types::{CRLF, ParseError, RESPValue, resp_prefix};
+use super::types::{CRLF, MultiBulk, ParseError, RESPValue, resp_prefix};
 use std::fmt;
 use std::fmt::Write;
 
@@ -366,51 +366,51 @@ mod tests {
     fn test_array() {
         let cases = vec![
             (
-                RESPValue::Array(vec![]),
+                RESPValue::Array(MultiBulk(vec![])),
                 "*0\r\n",
                 "succeeds in parsing empty array",
             ),
             (
-                RESPValue::Array(vec![
+                RESPValue::Array(MultiBulk(vec![
                     RESPValue::BulkString("hello".to_string()),
                     RESPValue::BulkString("world".to_string()),
-                ]),
+                ])),
                 "*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n",
                 "succeeds in parsing array with content",
             ),
             (
-                RESPValue::Array(vec![
+                RESPValue::Array(MultiBulk(vec![
                     RESPValue::Integer(1),
                     RESPValue::Integer(2),
                     RESPValue::Integer(3),
                     RESPValue::Integer(4),
                     RESPValue::BulkString("hello".to_string()),
-                ]),
+                ])),
                 "*5\r\n:1\r\n:2\r\n:3\r\n:4\r\n$5\r\nhello\r\n",
                 "succeeds in parsing mixed data-type array",
             ),
             (
-                RESPValue::Array(vec![
-                    RESPValue::Array(vec![
+                RESPValue::Array(MultiBulk(vec![
+                    RESPValue::Array(MultiBulk(vec![
                         RESPValue::Integer(1),
                         RESPValue::Integer(2),
                         RESPValue::Integer(3),
-                    ]),
-                    RESPValue::Array(vec![
+                    ])),
+                    RESPValue::Array(MultiBulk(vec![
                         RESPValue::SimpleString("Hello".to_string()),
                         RESPValue::SimpleError("World".to_string()),
-                    ]),
-                ]),
+                    ])),
+                ])),
                 "*2\r\n*3\r\n:1\r\n:2\r\n:3\r\n*2\r\n+Hello\r\n-World\r\n",
                 "succeeds in parsing multi-dimensional array",
             ),
             (
-                RESPValue::Array(vec![
+                RESPValue::Array(MultiBulk(vec![
                     RESPValue::BulkString("hello".to_string()),
                     RESPValue::NullBulkString,
                     RESPValue::NullArray,
                     RESPValue::BulkString("world".to_string()),
-                ]),
+                ])),
                 "*4\r\n$5\r\nhello\r\n$-1\r\n*-1\r\n$5\r\nworld\r\n",
                 "suceeds processing array with null elements",
             ),
@@ -585,15 +585,15 @@ mod tests {
     fn test_push() {
         let cases = vec![
             (
-                RESPValue::Push(vec![
+                RESPValue::Push(MultiBulk(vec![
                     RESPValue::SimpleString("hello".to_string()),
                     RESPValue::SimpleString("world".to_string()),
-                ]),
+                ])),
                 ">2\r\n+hello\r\n+world\r\n",
                 "succeeds parsing valid push",
             ),
             (
-                RESPValue::Push(vec![]),
+                RESPValue::Push(MultiBulk(vec![])),
                 ">0\r\n",
                 "succeeds parsing valid push (empty)",
             ),

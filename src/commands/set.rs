@@ -45,11 +45,11 @@ pub fn set(input: &MultiBulk, store: &Rc<RefCell<Store>>) -> Result<RESPValue, R
     let raw_key = &input[1];
     let raw_value = &input[2];
     let key = match raw_key {
-        RESPValue::BulkString(s) => s.to_string(),
+        RESPValue::BulkString(s) => s.clone(),
         _ => return Err(ResponseError::MalformedRequestError),
     };
     let value = match raw_value {
-        RESPValue::BulkString(s) => s.to_string(),
+        RESPValue::BulkString(s) => s.clone(),
         _ => return Err(ResponseError::MalformedRequestError),
     };
 
@@ -196,7 +196,7 @@ fn parse_opts(input: &MultiBulk) -> Result<SetOptions, ResponseError> {
 
                 let raw_val = &input[i + 1];
                 let val = match raw_val {
-                    RESPValue::BulkString(s) => s.to_string(),
+                    RESPValue::BulkString(s) => s.clone(),
                     _ => return Err(ResponseError::MalformedRequestError),
                 };
                 let ttl_sec = val
@@ -216,7 +216,7 @@ fn parse_opts(input: &MultiBulk) -> Result<SetOptions, ResponseError> {
 
                 let raw_val = &input[i + 1];
                 let val = match raw_val {
-                    RESPValue::BulkString(s) => s.to_string(),
+                    RESPValue::BulkString(s) => s.clone(),
                     _ => return Err(ResponseError::MalformedRequestError),
                 };
 
@@ -237,7 +237,7 @@ fn parse_opts(input: &MultiBulk) -> Result<SetOptions, ResponseError> {
 
                 let raw_val = &input[i + 1];
                 let val = match raw_val {
-                    RESPValue::BulkString(s) => s.to_string(),
+                    RESPValue::BulkString(s) => s.clone(),
                     _ => return Err(ResponseError::MalformedRequestError),
                 };
 
@@ -258,7 +258,7 @@ fn parse_opts(input: &MultiBulk) -> Result<SetOptions, ResponseError> {
 
                 let raw_val = &input[i + 1];
                 let val = match raw_val {
-                    RESPValue::BulkString(s) => s.to_string(),
+                    RESPValue::BulkString(s) => s.clone(),
                     _ => return Err(ResponseError::MalformedRequestError),
                 };
 
@@ -303,7 +303,7 @@ fn parse_opts(input: &MultiBulk) -> Result<SetOptions, ResponseError> {
 
                 let raw_val = &input[i + 1];
                 let val = match raw_val {
-                    RESPValue::BulkString(s) => s.to_string(),
+                    RESPValue::BulkString(s) => s.clone(),
                     _ => return Err(ResponseError::MalformedRequestError),
                 };
 
@@ -320,7 +320,7 @@ fn parse_opts(input: &MultiBulk) -> Result<SetOptions, ResponseError> {
 
                 let raw_val = &input[i + 1];
                 let val = match raw_val {
-                    RESPValue::BulkString(s) => s.to_string(),
+                    RESPValue::BulkString(s) => s.clone(),
                     _ => return Err(ResponseError::MalformedRequestError),
                 };
 
@@ -337,7 +337,7 @@ fn parse_opts(input: &MultiBulk) -> Result<SetOptions, ResponseError> {
 
                 let raw_val = &input[i + 1];
                 let val = match raw_val {
-                    RESPValue::BulkString(s) => s.to_string(),
+                    RESPValue::BulkString(s) => s.clone(),
                     _ => return Err(ResponseError::MalformedRequestError),
                 };
 
@@ -354,7 +354,7 @@ fn parse_opts(input: &MultiBulk) -> Result<SetOptions, ResponseError> {
 
                 let raw_val = &input[i + 1];
                 let val = match raw_val {
-                    RESPValue::BulkString(s) => s.to_string(),
+                    RESPValue::BulkString(s) => s.clone(),
                     _ => return Err(ResponseError::MalformedRequestError),
                 };
 

@@ -1,4 +1,4 @@
-use super::types::{CRLF, ParseError, RESPMap, RESPSet, RESPValue, resp_prefix};
+use super::types::{CRLF, MultiBulk, ParseError, RESPMap, RESPSet, RESPValue, resp_prefix};
 use num_bigint::BigInt;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
@@ -120,7 +120,7 @@ fn decode_value(input: &str, pos: &mut usize, depth: usize) -> Result<RESPValue,
                     let element = decode_value(input, pos, depth + 1)?;
                     elements.push(element);
                 }
-                result = RESPValue::Array(elements);
+                result = RESPValue::Array(MultiBulk(elements));
             }
         }
         resp_prefix::BULK_ERROR => {
@@ -244,7 +244,7 @@ fn decode_value(input: &str, pos: &mut usize, depth: usize) -> Result<RESPValue,
                 let element = decode_value(input, pos, depth + 1)?;
                 elements.push(element);
             }
-            result = RESPValue::Push(elements);
+            result = RESPValue::Push(MultiBulk(elements));
         }
         _ => {
             return Err(ParseError::Invalid);
@@ -418,51 +418,51 @@ mod tests {
         let cases = vec![
             (
                 "*0\r\n",
-                Ok(RESPValue::Array(vec![])),
+                Ok(RESPValue::Array(MultiBulk(vec![]))),
                 "succeeds in parsing empty array",
             ),
             (
                 "*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n",
-                Ok(RESPValue::Array(vec![
+                Ok(RESPValue::Array(MultiBulk(vec![
                     RESPValue::BulkString("hello".to_string()),
                     RESPValue::BulkString("world".to_string()),
-                ])),
+                ]))),
                 "succeeds in parsing array with content",
             ),
             (
                 "*5\r\n:1\r\n:2\r\n:3\r\n:4\r\n$5\r\nhello\r\n",
-                Ok(RESPValue::Array(vec![
+                Ok(RESPValue::Array(MultiBulk(vec![
                     RESPValue::Integer(1),
                     RESPValue::Integer(2),
                     RESPValue::Integer(3),
                     RESPValue::Integer(4),
                     RESPValue::BulkString("hello".to_string()),
-                ])),
+                ]))),
                 "succeeds in parsing mixed data-type array",
             ),
             (
                 "*2\r\n*3\r\n:1\r\n:2\r\n:3\r\n*2\r\n+Hello\r\n-World\r\n",
-                Ok(RESPValue::Array(vec![
-                    RESPValue::Array(vec![
+                Ok(RESPValue::Array(MultiBulk(vec![
+                    RESPValue::Array(MultiBulk(vec![
                         RESPValue::Integer(1),
                         RESPValue::Integer(2),
                         RESPValue::Integer(3),
-                    ]),
-                    RESPValue::Array(vec![
+                    ])),
+                    RESPValue::Array(MultiBulk(vec![
                         RESPValue::SimpleString("Hello".to_string()),
                         RESPValue::SimpleError("World".to_string()),
-                    ]),
-                ])),
+                    ])),
+                ]))),
                 "succeeds in parsing multi-dimensional array",
             ),
             (
                 "*4\r\n$5\r\nhello\r\n$-1\r\n*-1\r\n$5\r\nworld\r\n",
-                Ok(RESPValue::Array(vec![
+                Ok(RESPValue::Array(MultiBulk(vec![
                     RESPValue::BulkString("hello".to_string()),
                     RESPValue::NullBulkString,
                     RESPValue::NullArray,
                     RESPValue::BulkString("world".to_string()),
-                ])),
+                ]))),
                 "suceeds processing array with null elements",
             ),
             (
@@ -895,15 +895,15 @@ mod tests {
         let cases = vec![
             (
                 ">2\r\n+hello\r\n+world\r\n",
-                Ok(RESPValue::Push(vec![
+                Ok(RESPValue::Push(MultiBulk(vec![
                     RESPValue::SimpleString("hello".to_string()),
                     RESPValue::SimpleString("world".to_string()),
-                ])),
+                ]))),
                 "succeeds parsing valid push",
             ),
             (
                 ">0\r\n",
-                Ok(RESPValue::Push(vec![])),
+                Ok(RESPValue::Push(MultiBulk(vec![]))),
                 "succeeds parsing valid push (empty)",
             ),
             (

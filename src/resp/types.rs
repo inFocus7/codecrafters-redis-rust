@@ -26,7 +26,42 @@ impl std::fmt::Display for ParseError {
     }
 }
 
-pub type MultiBulk = Vec<RESPValue>;
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct MultiBulk(pub Vec<RESPValue>);
+
+impl From<Vec<String>> for MultiBulk {
+    fn from(value: Vec<String>) -> Self {
+        MultiBulk(
+            value
+                .into_iter()
+                .map(|e| RESPValue::BulkString(e))
+                .collect(),
+        )
+    }
+}
+
+impl std::ops::Deref for MultiBulk {
+    type Target = Vec<RESPValue>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl IntoIterator for MultiBulk {
+    type Item = RESPValue;
+    type IntoIter = std::vec::IntoIter<RESPValue>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a MultiBulk {
+    type Item = &'a RESPValue;
+    type IntoIter = std::slice::Iter<'a, RESPValue>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct RESPMap(pub HashMap<RESPValue, RESPValue>);

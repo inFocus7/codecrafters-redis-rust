@@ -13,7 +13,7 @@ pub fn echo(input: &MultiBulk) -> Result<RESPValue, ResponseError> {
 
     // raw content to echo back
     match &input[1] {
-        RESPValue::BulkString(s) => return Ok(RESPValue::BulkString(s.to_string())),
+        RESPValue::BulkString(s) => return Ok(RESPValue::BulkString(s.clone())),
         _ => return Err(ResponseError::MalformedRequestError),
     }
 }

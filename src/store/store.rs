@@ -4,6 +4,7 @@ use super::types::{Entry, Value};
 use ahash::RandomState;
 use std::cmp::min;
 use std::collections::HashMap;
+use std::collections::VecDeque;
 
 // TODO: active (configurable) expiration
 
@@ -29,24 +30,18 @@ impl Store {
     // TODO: Right now we require mutable store, meaning borrow_mut(), but i can instead delete-if-expired after the get() to keep this immutable.
     // Something like: Ok(val) => exists, ok; Ok(None) => exists, expired {then caller does a .delete() on their end}; None | Err(NotExists) => DNE; Err(val) => error
     pub fn get(&mut self, key: &str) -> Result<Option<&Entry>, StoreError> {
-        if let Some(entry) = self.data.get(key)
-            && entry.is_expired()?
-        {
-            self.delete(key);
+        if self.handle_expire(key)? {
             return Ok(None);
         }
-        Ok(self.data.get(key))
-    }
 
-    fn has(&mut self, key: &str) -> bool {
-        self.data.contains_key(key)
+        Ok(self.data.get(key))
     }
 
     pub fn delete(&mut self, key: &str) -> Option<Entry> {
         self.data.remove(key)
     }
 
-    pub fn rpush(&mut self, key: String, elements: Vec<String>) -> Result<usize, StoreError> {
+    pub fn rpush(&mut self, key: String, elements: VecDeque<String>) -> Result<usize, StoreError> {
         match self.data.get_mut(&key) {
             Some(v) => match &mut v.value {
                 Value::String(_) => return Err(StoreError::KeyTaken),
@@ -63,22 +58,23 @@ impl Store {
         }
     }
 
-    pub fn lpush(&mut self, key: String, mut elements: Vec<String>) -> Result<usize, StoreError> {
+    pub fn lpush(&mut self, key: String, elements: VecDeque<String>) -> Result<usize, StoreError> {
         match self.data.get_mut(&key) {
             Some(v) => match &mut v.value {
                 Value::String(_) => return Err(StoreError::KeyTaken),
                 Value::List(l) => {
-                    let original_len = l.len();
-                    elements.reverse();
-                    l.extend(elements);
-                    l.rotate_left(original_len); // should move new elements (after original len) to front
+                    elements.into_iter().for_each(|e| l.push_front(e));
                     Ok(l.len())
                 }
             },
             None => {
-                elements.reverse();
-                let len = elements.len();
-                self.data.insert(key, Entry::new(Value::List(elements)));
+                // could also make elements contiguous and reverse inline
+                let mut l = VecDeque::new();
+                for e in elements {
+                    l.push_front(e);
+                }
+                let len = l.len();
+                self.data.insert(key, Entry::new(Value::List(l)));
                 Ok(len)
             }
         }
@@ -90,10 +86,7 @@ impl Store {
         start: isize,
         stop: isize,
     ) -> Result<Vec<String>, StoreError> {
-        if let Some(entry) = self.data.get(key)
-            && entry.is_expired()?
-        {
-            self.delete(key);
+        if self.handle_expire(key)? {
             return Ok(vec![]);
         }
 
@@ -114,7 +107,7 @@ impl Store {
                         Vec::<String>::with_capacity((norm_stop - norm_start) as usize + 1);
 
                     for i in 0..(norm_stop - norm_start + 1) {
-                        res.push(l[norm_start + i].to_string());
+                        res.push(l[norm_start + i].clone());
                     }
 
                     return Ok(res);
@@ -127,10 +120,7 @@ impl Store {
     }
 
     pub fn llen(&mut self, key: &str) -> Result<usize, StoreError> {
-        if let Some(entry) = self.data.get(key)
-            && entry.is_expired()?
-        {
-            self.delete(key);
+        if self.handle_expire(key)? {
             return Ok(0);
         }
 
@@ -142,6 +132,47 @@ impl Store {
         } else {
             Ok(0)
         }
+    }
+
+    pub fn lpop(&mut self, key: &str, num_elements: usize) -> Result<Vec<String>, StoreError> {
+        if self.handle_expire(key)? {
+            return Ok(vec![]);
+        }
+
+        // if len too big, just pop all, keep array
+        // if key DNE: nil reply
+        if let Some(entry) = self.data.get_mut(key) {
+            match &mut entry.value {
+                Value::List(l) => {
+                    if num_elements >= l.len() {
+                        let items = l.clone();
+                        l.clear();
+                        return Ok(Vec::<String>::from(items));
+                    }
+
+                    let mut items = Vec::<String>::with_capacity(num_elements);
+                    for _ in 0..num_elements {
+                        if let Some(pop_front) = l.pop_front() {
+                            items.push(pop_front);
+                        };
+                    }
+                    return Ok(items);
+                }
+                _ => Err(StoreError::WrongType),
+            }
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    fn handle_expire(&mut self, key: &str) -> Result<bool, StoreError> {
+        if let Some(entry) = self.data.get(key)
+            && entry.is_expired()?
+        {
+            self.delete(key);
+            return Ok(true);
+        }
+        Ok(false)
     }
 }
 

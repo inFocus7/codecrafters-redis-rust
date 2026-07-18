@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum StoreError {
     InternalError, // internal error
@@ -28,7 +30,7 @@ impl std::fmt::Display for StoreError {
 
 pub enum Value {
     String(String),
-    List(Vec<String>),
+    List(VecDeque<String>),
 }
 
 pub struct Entry {
