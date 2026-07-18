@@ -125,6 +125,24 @@ impl Store {
             Ok(vec![])
         }
     }
+
+    pub fn llen(&mut self, key: &str) -> Result<usize, StoreError> {
+        if let Some(entry) = self.data.get(key)
+            && entry.is_expired()?
+        {
+            self.delete(key);
+            return Ok(0);
+        }
+
+        if let Some(entry) = self.data.get(key) {
+            match &entry.value {
+                Value::List(l) => Ok(l.len()),
+                _ => Err(StoreError::WrongType),
+            }
+        } else {
+            Ok(0)
+        }
+    }
 }
 
 fn normalize_idx(idx: isize, len: usize) -> usize {
