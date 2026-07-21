@@ -5,7 +5,6 @@ pub enum StoreError {
     InternalError, // internal error
     KeyTaken,
     WrongType,
-    BadRange,
 }
 
 impl std::error::Error for StoreError {}
@@ -21,9 +20,6 @@ impl std::fmt::Display for StoreError {
             StoreError::WrongType => {
                 write!(f, "wrong type")
             }
-            StoreError::BadRange => {
-                write!(f, "bad range")
-            }
         }
     }
 }
@@ -31,6 +27,15 @@ impl std::fmt::Display for StoreError {
 pub enum Value {
     String(String),
     List(VecDeque<String>),
+}
+
+impl Value {
+    pub fn type_name(&self) -> &str {
+        match self {
+            Value::String(_) => "string",
+            Value::List(_) => "list",
+        }
+    }
 }
 
 pub struct Entry {

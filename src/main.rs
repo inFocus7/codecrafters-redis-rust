@@ -3,7 +3,7 @@ mod resp;
 mod store;
 
 use crate::commands::types::ResponseError;
-use crate::commands::{blpop, echo, get, llen, lpop, lpush, lrange, ping, rpush, set};
+use crate::commands::{blpop, echo, get, llen, lpop, lpush, lrange, ping, rpush, set, type_cmd};
 use crate::resp::types::{ParseError, RESPValue};
 use crate::store::store::Store;
 use std::cell::RefCell;
@@ -65,6 +65,7 @@ async fn handle_connection(
                             "llen" => raw_resp = llen::llen(a, &store)?,
                             "lpop" => raw_resp = lpop::lpop(a, &store)?,
                             "blpop" => raw_resp = blpop::blpop(a, &store).await?,
+                            "type" => raw_resp = type_cmd::type_cmd(a, &store)?,
                             _ => {
                                 return Err(Box::new(ResponseError::UnsupportedCommandError));
                             }

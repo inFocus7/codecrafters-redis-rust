@@ -8,4 +8,5 @@ pub mod lrange;
 pub mod ping;
 pub mod rpush;
 pub mod set;
+pub mod type_cmd;
 pub mod types;
