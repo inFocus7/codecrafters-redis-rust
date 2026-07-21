@@ -1,3 +1,4 @@
+pub mod blpop;
 pub mod echo;
 pub mod get;
 pub mod llen;

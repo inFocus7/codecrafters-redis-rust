@@ -3,20 +3,36 @@ use crate::store::types::StoreError;
 use super::types::{Entry, Value};
 use ahash::RandomState;
 use std::cmp::min;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use tokio::sync::oneshot;
 
-// TODO: active (configurable) expiration
+// TODO: Active (configurable) expiration, instead of lazy.
+// IDEA: Every S seconds get N random keys and delete if expired.
 
 pub struct Store {
+    // the kv data store => key: entry
     data: HashMap<String, Entry, RandomState>,
+    // Map from blocked key to BTreeMap (ordered tree based on key)
+    // We can use BTreeMap instead of needing a IndexMap for ordering, since we'll be using a counter for keys
+    waiters: HashMap<String, BTreeMap<u64, oneshot::Sender<()>>, RandomState>,
+    counter: u64,
 }
 
 impl Store {
     pub fn new() -> Self {
         Store {
             data: HashMap::with_hasher(RandomState::new()),
+            waiters: HashMap::with_hasher(RandomState::new()),
+            counter: 0,
         }
+    }
+
+    // updates counter, should call once as-needed per batch of work
+    pub fn count(&mut self) -> u64 {
+        self.counter += 1;
+        return self.counter;
     }
 
     pub fn set(&mut self, key: String, value: String, expiry_ms: Option<u64>) -> Option<Entry> {
@@ -42,29 +58,44 @@ impl Store {
     }
 
     pub fn rpush(&mut self, key: String, elements: VecDeque<String>) -> Result<usize, StoreError> {
-        match self.data.get_mut(&key) {
+        let res = match self.data.get_mut(&key) {
             Some(v) => match &mut v.value {
-                Value::String(_) => return Err(StoreError::KeyTaken),
+                Value::String(_) => Err(StoreError::KeyTaken)?,
                 Value::List(l) => {
                     l.extend(elements);
-                    Ok(l.len())
+                    l.len()
                 }
             },
             None => {
                 let len = elements.len();
-                self.data.insert(key, Entry::new(Value::List(elements)));
-                Ok(len)
+                self.data
+                    .insert(key.clone(), Entry::new(Value::List(elements)));
+                len
+            }
+        };
+
+        if let Some(m) = self.waiters.get_mut(&key)
+            && !m.is_empty()
+        {
+            // let first non-dropped rx know it's ready
+            while let Some((_, tx)) = m.pop_first() {
+                if tx.send(()).is_ok() {
+                    break;
+                }
             }
         }
+
+        Ok(res)
     }
 
     pub fn lpush(&mut self, key: String, elements: VecDeque<String>) -> Result<usize, StoreError> {
-        match self.data.get_mut(&key) {
+        let k = key.clone();
+        let res = match self.data.get_mut(&key) {
             Some(v) => match &mut v.value {
-                Value::String(_) => return Err(StoreError::KeyTaken),
+                Value::String(_) => Err(StoreError::KeyTaken)?,
                 Value::List(l) => {
                     elements.into_iter().for_each(|e| l.push_front(e));
-                    Ok(l.len())
+                    l.len()
                 }
             },
             None => {
@@ -75,9 +106,22 @@ impl Store {
                 }
                 let len = l.len();
                 self.data.insert(key, Entry::new(Value::List(l)));
-                Ok(len)
+                len
+            }
+        };
+
+        if let Some(m) = self.waiters.get_mut(&k)
+            && !m.is_empty()
+        {
+            // let first non-dropped rx know it's ready
+            while let Some((_, tx)) = m.pop_first() {
+                if tx.send(()).is_ok() {
+                    break;
+                }
             }
         }
+
+        return Ok(res);
     }
 
     pub fn lrange(
@@ -162,6 +206,25 @@ impl Store {
             }
         } else {
             Ok(vec![])
+        }
+    }
+
+    // subscribes to a key, should call counter() to get latest count
+    // not doing counter within the method so requests can keep their count as id (but may change)
+    pub fn subscribe(&mut self, id: u64, key: &str) -> oneshot::Receiver<()> {
+        let (tx, rx) = oneshot::channel::<()>();
+        self.waiters
+            .entry(key.to_string())
+            .or_insert_with(BTreeMap::<u64, oneshot::Sender<()>>::new)
+            .insert(id, tx);
+        rx
+    }
+
+    pub fn unsubscribe(&mut self, id: u64, keys: &Vec<String>) {
+        for key in keys {
+            if let Some(m) = self.waiters.get_mut(key) {
+                m.remove(&id);
+            }
         }
     }
 

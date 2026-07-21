@@ -2,7 +2,6 @@ use super::types::ResponseError;
 use crate::resp::types::{MultiBulk, RESPValue};
 use crate::store::store::Store;
 use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::rc::Rc;
 
 pub fn lpop(input: &MultiBulk, store: &Rc<RefCell<Store>>) -> Result<RESPValue, ResponseError> {

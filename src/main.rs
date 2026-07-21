@@ -3,7 +3,7 @@ mod resp;
 mod store;
 
 use crate::commands::types::ResponseError;
-use crate::commands::{echo, get, llen, lpop, lpush, lrange, ping, rpush, set};
+use crate::commands::{blpop, echo, get, llen, lpop, lpush, lrange, ping, rpush, set};
 use crate::resp::types::{ParseError, RESPValue};
 use crate::store::store::Store;
 use std::cell::RefCell;
@@ -64,6 +64,7 @@ async fn handle_connection(
                             "lpush" => raw_resp = lpush::lpush(a, &store)?,
                             "llen" => raw_resp = llen::llen(a, &store)?,
                             "lpop" => raw_resp = lpop::lpop(a, &store)?,
+                            "blpop" => raw_resp = blpop::blpop(a, &store).await?,
                             _ => {
                                 return Err(Box::new(ResponseError::UnsupportedCommandError));
                             }
@@ -123,7 +124,7 @@ async fn main() {
                 tokio::task::spawn_local(async move {
                     if config.timeout.is_zero() {
                         let err = handle_connection(stream, s).await.err();
-                        if !err.is_none() {
+                        if err.is_none() {
                             // todo handle error? log?
                         }
                     } else {
